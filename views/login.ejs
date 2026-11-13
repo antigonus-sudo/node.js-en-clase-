@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login 30s</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Roboto, sans-serif; }
+        body { background: #0f172a; display: flex; justify-content: center; align-items: center; min-height: 100vh; color: #f8fafc; }
+        .card { background: #1e293b; padding: 2.5rem; border-radius: 16px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3); width: 100%; max-width: 400px; text-align: center; border: 1px solid #334155; }
+        h2 { margin-bottom: 1.5rem; font-size: 1.75rem; font-weight: 600; color: #f1f5f9; }
+        .input-group { margin-bottom: 1.25rem; text-align: left; }
+        input { width: 100%; padding: 0.75rem 1rem; background: #334155; border: 1px solid #475569; border-radius: 8px; color: #fff; font-size: 1rem; transition: all 0.2s ease; }
+        input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15); }
+        button { width: 100%; padding: 0.75rem; background: #2563eb; color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: background 0.2s ease; margin-top: 0.5rem; }
+        button:hover { background: #1d4ed8; }
+        button.secondary { background: #dc2626; margin-top: 1.5rem; }
+        button.secondary:hover { background: #b91c1c; }
+        #error { background: #ef44441a; border: 1px solid #ef444433; color: #f87171; padding: 0.75rem; border-radius: 8px; font-size: 0.875rem; margin-top: 1rem; }
+        .timer-box { font-size: 3rem; font-weight: 700; color: #ef4444; margin: 1.5rem 0; background: #ef444410; padding: 0.5rem; border-radius: 12px; border: 1px dashed #ef444440; display: inline-block; min-width: 120px; }
+        .data-box { background: #0f172a; padding: 1rem; border-radius: 8px; border: 1px solid #334155; text-align: left; margin-top: 1rem; font-size: 0.9rem; overflow-x: auto; }
+        .label { color: #94a3b8; font-size: 0.85rem; margin-bottom: 0.25rem; display: block; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <!-- SECCIÓN DE LOGIN -->
+        <div id="seccionLogin">
+            <h2>Ingresar</h2>
+            <form id="formulario">
+                <div class="input-group">
+                    <label class="label">Correo Electrónico</label>
+                    <input type="email" id="email" required value="pepegrillo@senati.pe">
+                    <!--<input type="email" id="email" required placeholder="Ingresa tu correo">-->
+                </div>
+                <div class="input-group">
+                    <label class="label">Contraseña</label>
+                    <input type="password" id="password" required value="123456">
+                <!--<input type="password" id="password" required placeholder="Ingresa tu contraseña">-->
+                </div>
+                <button type="submit">Entrar</button>
+            </form>
+            <p id="error" style="display: none;"></p>
+        </div>
+
+        <!-- SECCIÓN DE DASHBOARD -->
+        <div id="seccionDashboard" style="display: none;">
+            <h2>Dashboard Seguro</h2>
+            <p style="color: #94a3b8;">Tu sesión expirará pronto</p>
+            <div class="timer-box"><span id="contador">30</span>s</div>
+            
+            <span class="label" style="text-align: left;">Datos del Backend:</span>
+            <div class="data-box">
+                <span id="datosUsuario" style="color: #34d399;">Cargando...</span>
+            </div>
+            
+            <button onclick="cerrarSesion()" class="secondary">Salir del Panel</button>
+        </div>
+    </div>
+
+<script>
+    let temporizador;
+
+    document.getElementById('formulario').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const errorMsg = document.getElementById('error');
+        errorMsg.style.display = 'none';
+
+        try {
+            const res = await fetch('/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: document.getElementById('email').value,
+                    password: document.getElementById('password').value
+                })
+            });
+
+            const token = await res.text();
+            if (!res.ok) throw new Error('Credenciales incorrectas');
+
+            localStorage.setItem('mi_token', token);
+            localStorage.setItem('tiempo_limite', Date.now() + (30 * 1000));
+
+            verificarYMostrarDashboard();
+
+        } catch (err) {
+            errorMsg.innerText = err.message;
+            errorMsg.style.display = 'block';
+        }
+    });
+
+    function verificarYMostrarDashboard() {
+        const token = localStorage.getItem('mi_token');
+        const limite = localStorage.getItem('tiempo_limite');
+
+        if (!token || !limite || Date.now() >= limite) {
+            cerrarSesion();
+            return;
+        }
+
+        document.getElementById('seccionLogin').style.display = 'none';
+        document.getElementById('seccionDashboard').style.display = 'block';
+
+        fetch('/dashboard', {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${token}` }
+        })
+        .then(res => res.text())
+        .then(texto => {
+            document.getElementById('datosUsuario').innerText = texto;
+        });
+
+        clearInterval(temporizador);
+        temporizador = setInterval(() => {
+            const restante = Math.ceil((limite - Date.now()) / 1000);
+
+            if (restante <= 0) {
+                cerrarSesion();
+                alert('¡Sesión expirada! Tu token de 30 segundos terminó.');
+            } else {
+                document.getElementById('contador').innerText = restante;
+            }
+        }, 1000);
+    }
+
+    function cerrarSesion() {
+        clearInterval(temporizador);
+        localStorage.removeItem('mi_token');
+        localStorage.removeItem('tiempo_limite');
+        document.getElementById('seccionDashboard').style.display = 'none';
+        document.getElementById('seccionLogin').style.display = 'block';
+    }
+
+    verificarYMostrarDashboard();
+</script>
+</body>
+</html>
